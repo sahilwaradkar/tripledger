@@ -7,7 +7,8 @@ Offline-first travel expense manager (personal + group splits) built with **Next
 - Personal expenses with optional trip labels and categories
 - Group trips with shareable invite links (`/g/[token]`)
 - Guest participants (track a friend’s spend without them signing up)
-- Balances and simplified settle-up suggestions
+- Balances, recorded settlement payments (including partial pay-downs), and dashboard settle summary
+- Simplified settle-up suggestions after payments
 - Firestore offline persistence + installable PWA shell
 
 ## Local development

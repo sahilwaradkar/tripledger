@@ -83,6 +83,60 @@ service cloud.firestore {
         && authEmailLower() == resource.data.email.lower();
     }
 
+    function participantMatchesAuth(groupId, participantId) {
+      return exists(/databases/$(database)/documents/groups/$(groupId)/participants/$(participantId))
+        && (
+          participantId == request.auth.uid
+          || get(/databases/$(database)/documents/groups/$(groupId)/participants/$(participantId)).data.get('userId', '') == request.auth.uid
+          || get(/databases/$(database)/documents/groups/$(groupId)/participants/$(participantId)).data.get('claimedByUserId', '') == request.auth.uid
+        );
+    }
+
+    function canRecordSettlement(groupId) {
+      let fromId = request.resource.data.fromParticipantId;
+      let toId = request.resource.data.toParticipantId;
+      return isGroupAdmin(groupId)
+        || participantMatchesAuth(groupId, fromId)
+        || participantMatchesAuth(groupId, toId);
+    }
+
+    function validSettlementCreate(groupId) {
+      let group = groupData(groupId);
+      return request.resource.data.fromParticipantId != request.resource.data.toParticipantId
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0
+        && request.resource.data.currency == group.currency
+        && request.resource.data.recordedByUserId == request.auth.uid
+        && request.resource.data.fromParticipantId is string
+        && request.resource.data.toParticipantId is string
+        && request.resource.data.date is string;
+    }
+
+    function isAutoOffsetSettlement() {
+      return request.resource.data.get('kind', 'payment') == 'auto_offset';
+    }
+
+    function validAutoOffsetCreate(groupId, settlementId) {
+      let group = groupData(groupId);
+      return settlementId.matches('mutual_.*')
+        && isAutoOffsetSettlement()
+        && request.resource.data.referenceKey is string
+        && request.resource.data.referenceKey.size() > 0
+        && validSettlementCreate(groupId);
+    }
+
+    function validAutoOffsetUpdate() {
+      return resource.data.get('kind', 'payment') == 'auto_offset'
+        && request.resource.data.kind == 'auto_offset'
+        && request.resource.data.referenceKey == resource.data.referenceKey
+        && request.resource.data.fromParticipantId == resource.data.fromParticipantId
+        && request.resource.data.toParticipantId == resource.data.toParticipantId
+        && request.resource.data.currency == resource.data.currency
+        && request.resource.data.recordedByUserId == resource.data.recordedByUserId
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0;
+    }
+
     match /userEmails/{email} {
       allow read: if signedIn();
       allow create, update: if signedIn()
@@ -162,6 +216,21 @@ service cloud.firestore {
       match /expenses/{expenseId} {
         allow read, create: if isGroupMember(groupId);
         allow update, delete: if isGroupAdmin(groupId);
+      }
+
+      match /settlements/{settlementId} {
+        allow read: if isGroupMember(groupId);
+        allow create: if isGroupMember(groupId) && (
+          (
+            !isAutoOffsetSettlement()
+            && validSettlementCreate(groupId)
+            && canRecordSettlement(groupId)
+          )
+          || validAutoOffsetCreate(groupId, settlementId)
+        );
+        allow delete: if isGroupAdmin(groupId)
+          || (isGroupMember(groupId) && resource.data.get('kind', 'payment') == 'auto_offset');
+        allow update: if isGroupMember(groupId) && validAutoOffsetUpdate();
       }
     }
 

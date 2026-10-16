@@ -74,6 +74,22 @@ export interface GroupExpense {
   updatedAt: number;
 }
 
+export type SettlementKind = "payment" | "auto_offset";
+
+export interface GroupSettlement {
+  id: string;
+  fromParticipantId: string;
+  toParticipantId: string;
+  amount: number;
+  currency: string;
+  date: string;
+  note?: string;
+  recordedByUserId: string;
+  updatedAt: number;
+  kind?: SettlementKind;
+  referenceKey?: string;
+}
+
 export interface Invite {
   token: string;
   groupId: string;

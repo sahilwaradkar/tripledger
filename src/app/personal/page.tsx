@@ -1,17 +1,19 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { RequireAuth } from "@/components/auth/require-auth";
 import { ExpenseListItem } from "@/components/expenses/expense-list-item";
 import { PersonalExpenseForm } from "@/components/expenses/personal-expense-form";
 import { AppShell } from "@/components/layout/app-shell";
+import { OverflowMenu } from "@/components/layout/overflow-menu";
+import { StickyActionBar } from "@/components/layout/sticky-action-bar";
 import { useAuth } from "@/components/providers/auth-provider";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import {
   createPersonalExpense,
   deletePersonalExpense,
@@ -25,6 +27,7 @@ function PersonalContent() {
   const [expenses, setExpenses] = useState<PersonalExpense[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [tripFilter, setTripFilter] = useState("");
   const [newTripName, setNewTripName] = useState("");
 
@@ -42,6 +45,8 @@ function PersonalContent() {
     if (!tripFilter) return expenses;
     return expenses.filter((e) => e.tripId === tripFilter);
   }, [expenses, tripFilter]);
+
+  const activeTripName = trips.find((t) => t.id === tripFilter)?.name;
 
   async function handleAdd(values: {
     amount: number;
@@ -63,56 +68,38 @@ function PersonalContent() {
   }
 
   return (
-    <AppShell
-      title="Personal"
-      action={
-        <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-          <SheetTrigger asChild>
-            <Button size="icon" aria-label="Add expense">
-              <Plus className="h-5 w-5" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent title="Add expense">
-            <PersonalExpenseForm trips={trips} onSubmit={handleAdd} onCancel={() => setSheetOpen(false)} />
-          </SheetContent>
-        </Sheet>
-      }
-    >
-      <div className="space-y-4">
-        <Card className="space-y-3">
-          <p className="text-sm font-medium">Trips (optional labels)</p>
-          <div className="flex gap-2">
-            <Input
-              placeholder="New trip name"
-              value={newTripName}
-              onChange={(e) => setNewTripName(e.target.value)}
-            />
-            <Button type="button" variant="secondary" onClick={handleCreateTrip}>
-              Add
-            </Button>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="trip-filter">Filter by trip</Label>
-            <select
-              id="trip-filter"
-              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-900"
-              value={tripFilter}
-              onChange={(e) => setTripFilter(e.target.value)}
-            >
-              <option value="">All expenses</option>
-              {trips.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </Card>
+    <>
+      <AppShell
+        title="Personal"
+        menu={
+          <OverflowMenu
+            title="Personal"
+            items={[
+              {
+                label: "Filters & trips",
+                icon: SlidersHorizontal,
+                onClick: () => setFiltersOpen(true),
+              },
+            ]}
+          />
+        }
+        footer={
+          <StickyActionBar
+            primary={{
+              label: "Add expense",
+              onClick: () => setSheetOpen(true),
+            }}
+          />
+        }
+      >
+        {tripFilter && activeTripName ? (
+          <p className="mb-2 text-xs text-muted">Showing: {activeTripName}</p>
+        ) : null}
 
         {filtered.length === 0 ? (
-          <Card>
-            <p className="text-sm text-slate-500">No personal expenses yet. Tap + to add one — works offline too.</p>
-          </Card>
+          <p className="py-12 text-center text-sm text-muted">
+            No personal expenses yet. Tap Add expense below.
+          </p>
         ) : (
           <div className="space-y-2">
             {filtered.map((e) => (
@@ -125,15 +112,56 @@ function PersonalContent() {
                 onDelete={() => deletePersonalExpense(e.id)}
                 deleteConfirm={{
                   title: "Delete expense?",
-                  description:
-                    "This removes the expense from your personal list. This can't be undone.",
+                  description: "This removes the expense from your personal list.",
                 }}
               />
             ))}
           </div>
         )}
-      </div>
-    </AppShell>
+      </AppShell>
+
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetContent title="Add expense">
+          <PersonalExpenseForm trips={trips} onSubmit={handleAdd} onCancel={() => setSheetOpen(false)} />
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <SheetContent title="Filters & trips">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="trip-filter">Filter by trip</Label>
+              <Select
+                id="trip-filter"
+                value={tripFilter}
+                onChange={(e) => setTripFilter(e.target.value)}
+              >
+                <option value="">All expenses</option>
+                {trips.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-trip">New trip label</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="new-trip"
+                  placeholder="Trip name"
+                  value={newTripName}
+                  onChange={(e) => setNewTripName(e.target.value)}
+                />
+                <Button type="button" variant="secondary" onClick={handleCreateTrip}>
+                  Add
+                </Button>
+              </div>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }
 

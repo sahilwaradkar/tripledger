@@ -31,7 +31,7 @@ export function ExpenseListItem({
 
   return (
     <>
-      <div className="flex items-start justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950">
+      <div className="flex items-start justify-between gap-3 rounded-xl border border-border bg-surface p-3">
         <div className="min-w-0">
           <p className="truncate font-medium">{title}</p>
           <p className="text-sm text-slate-500">{subtitle}</p>

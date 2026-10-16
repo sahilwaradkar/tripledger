@@ -1,27 +1,24 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
+import { Plus } from "lucide-react";
+import { useState } from "react";
 import { RequireAuth } from "@/components/auth/require-auth";
 import { CreateGroupForm } from "@/components/groups/create-group-form";
 import { AppShell } from "@/components/layout/app-shell";
+import { ListRow, ListRowAvatar } from "@/components/layout/list-row";
+import { NetBalanceBadge } from "@/components/settlements/net-balance-badge";
 import { useAuth } from "@/components/providers/auth-provider";
+import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
-import { createGroup, subscribeGroups } from "@/lib/repo/groups";
-import type { Group } from "@/lib/types";
+import { useMyGroupsSettleSummary } from "@/hooks/use-my-groups-settle-summary";
+import { createGroup } from "@/lib/repo/groups";
+import { formatMoney } from "@/lib/utils";
 
 function GroupsContent() {
   const { user } = useAuth();
-  const [groups, setGroups] = useState<Group[]>([]);
+  const { rows } = useMyGroupsSettleSummary(user?.uid);
   const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    if (!user) return;
-    return subscribeGroups(user.uid, setGroups);
-  }, [user]);
 
   async function handleCreate(values: {
     name: string;
@@ -45,7 +42,7 @@ function GroupsContent() {
       action={
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
-            <Button size="icon" aria-label="Create group">
+            <Button size="icon" variant="ghost" aria-label="Create group" className="h-9 w-9">
               <Plus className="h-5 w-5" />
             </Button>
           </SheetTrigger>
@@ -55,28 +52,35 @@ function GroupsContent() {
         </Sheet>
       }
     >
-      {groups.length === 0 ? (
+      {rows.length === 0 ? (
         <Card>
           <CardTitle>No groups yet</CardTitle>
-          <p className="mt-2 text-sm text-slate-500">
-            Create a trip group and share the link so friends can join. You can also add guest friends
-            who never sign up.
+          <p className="mt-2 text-sm text-muted">
+            Create a trip group and share the link so friends can join.
           </p>
           <Button className="mt-4 w-full" onClick={() => setOpen(true)}>
             Create your first group
           </Button>
         </Card>
       ) : (
-        <div className="space-y-2">
-          {groups.map((g) => (
-            <Link key={g.id} href={`/groups/${g.id}`}>
-              <Card className="transition hover:border-teal-300">
-                <p className="font-semibold">{g.name}</p>
-                <p className="text-sm text-slate-500">
-                  {g.memberIds.length} members · {g.currency}
+        <div className="overflow-hidden rounded-xl border border-border bg-surface">
+          {rows.map((row) => (
+            <ListRow key={row.group.id} href={`/groups/${row.group.id}`}>
+              <ListRowAvatar>{row.group.name.slice(0, 1).toUpperCase()}</ListRowAvatar>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium">{row.group.name}</p>
+                <p className="truncate text-xs text-muted">
+                  {row.loading
+                    ? "Loading…"
+                    : row.topOwe
+                      ? `You owe ${row.topOwe.displayName} ${formatMoney(row.topOwe.amount, row.currency)}`
+                      : `${row.group.memberIds.length} members · ${row.group.currency}`}
                 </p>
-              </Card>
-            </Link>
+              </div>
+              {row.loading ? null : (
+                <NetBalanceBadge net={row.myNet} currency={row.currency} compact />
+              )}
+            </ListRow>
           ))}
         </div>
       )}

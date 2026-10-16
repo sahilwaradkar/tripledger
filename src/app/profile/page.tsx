@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { useSyncExternalStore } from "react";
 import { RequireAuth } from "@/components/auth/require-auth";
 import { AppShell } from "@/components/layout/app-shell";
+import { AppearancePicker } from "@/components/profile/appearance-picker";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useSyncStatus } from "@/components/providers/sync-provider";
 import { Button } from "@/components/ui/button";
@@ -26,44 +27,42 @@ function ProfileContent() {
   );
   const installHint = isStandalone
     ? null
-    : "Install this app from your browser menu (Add to Home Screen) for the best offline experience.";
+    : "Install from your browser menu (Add to Home Screen) for offline use.";
 
   return (
     <AppShell title="Profile">
-      <div className="space-y-4">
+      <div className="space-y-3">
         <Card>
           <CardTitle>Account</CardTitle>
           <p className="mt-2 font-medium">{user?.displayName || "Traveler"}</p>
-          <p className="text-sm text-slate-500">{user?.email}</p>
+          <p className="text-sm text-muted">{user?.email}</p>
+        </Card>
+
+        <Card>
+          <CardTitle>Appearance</CardTitle>
+          <p className="mt-1 mb-3 text-sm text-muted">Light mode is default. Choose dark or match system.</p>
+          <AppearancePicker />
         </Card>
 
         <Card>
           <CardTitle>Offline & sync</CardTitle>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-            TripLedger uses Firebase Firestore offline persistence. Expenses you add without signal sync
-            automatically when you reconnect.
+          <p className="mt-2 text-sm text-muted">
+            Expenses sync automatically when you reconnect.
           </p>
-          <p className="mt-3 text-sm">
+          <p className="mt-2 text-sm">
             Status: <span className="font-medium capitalize">{status}</span>
           </p>
           {lastSyncedAt ? (
-            <p className="text-xs text-slate-500">
-              Last synced {format(new Date(lastSyncedAt), "PPpp")}
-            </p>
+            <p className="text-xs text-muted">Last synced {format(new Date(lastSyncedAt), "PPpp")}</p>
           ) : null}
         </Card>
 
         {installHint ? (
           <Card>
             <CardTitle>Install app</CardTitle>
-            <p className="mt-2 text-sm text-slate-500">{installHint}</p>
+            <p className="mt-2 text-sm text-muted">{installHint}</p>
           </Card>
-        ) : (
-          <Card>
-            <CardTitle>Installed</CardTitle>
-            <p className="mt-2 text-sm text-slate-500">You are using TripLedger as an installed app.</p>
-          </Card>
-        )}
+        ) : null}
 
         <Button variant="outline" className="w-full" onClick={() => logOut()}>
           Sign out

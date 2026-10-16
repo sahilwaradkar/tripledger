@@ -6,26 +6,24 @@ import { useEffect, useMemo, useState } from "react";
 import { RequireAuth } from "@/components/auth/require-auth";
 import { ExpenseListItem } from "@/components/expenses/expense-list-item";
 import { AppShell } from "@/components/layout/app-shell";
+import { ListRow, ListRowAvatar } from "@/components/layout/list-row";
+import { NetBalanceBadge } from "@/components/settlements/net-balance-badge";
 import { useAuth } from "@/components/providers/auth-provider";
-import { Card, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
+import { useMyGroupsSettleSummary } from "@/hooks/use-my-groups-settle-summary";
 import { subscribePersonalExpenses } from "@/lib/repo/expenses";
-import { subscribeGroups } from "@/lib/repo/groups";
-import type { Group, PersonalExpense } from "@/lib/types";
+import type { PersonalExpense } from "@/lib/types";
 import { formatMoney } from "@/lib/utils";
 
 function HomeContent() {
   const { user } = useAuth();
   const [expenses, setExpenses] = useState<PersonalExpense[]>([]);
-  const [groups, setGroups] = useState<Group[]>([]);
+  const { rows, totalsByCurrency, actionItems, allSettled, loading: settleLoading } =
+    useMyGroupsSettleSummary(user?.uid);
 
   useEffect(() => {
     if (!user) return;
-    const unsubExpenses = subscribePersonalExpenses(user.uid, setExpenses);
-    const unsubGroups = subscribeGroups(user.uid, setGroups);
-    return () => {
-      unsubExpenses();
-      unsubGroups();
-    };
+    return subscribePersonalExpenses(user.uid, setExpenses);
   }, [user]);
 
   const monthStart = format(startOfMonth(new Date()), "yyyy-MM-dd");
@@ -37,74 +35,102 @@ function HomeContent() {
     [expenses, monthStart],
   );
 
-  const byCategory = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const e of expenses.filter((x) => x.date >= monthStart)) {
-      map.set(e.category, (map.get(e.category) ?? 0) + e.amount);
-    }
-    return [...map.entries()].sort((a, b) => b[1] - a[1]);
-  }, [expenses, monthStart]);
-
   const currency = expenses[0]?.currency ?? "INR";
   const recent = expenses.slice(0, 5);
+  const oweEntries = [...totalsByCurrency.owe.entries()];
+  const owedEntries = [...totalsByCurrency.owed.entries()];
+  const hasGroups = rows.length > 0;
 
   return (
     <AppShell title="Home">
-      <div className="space-y-4">
-        <Card>
-          <CardTitle>This month (personal)</CardTitle>
-          <p className="mt-2 text-3xl font-bold tabular-nums">{formatMoney(monthTotal, currency)}</p>
-          <p className="text-sm text-slate-500">{format(new Date(), "MMMM yyyy")}</p>
-        </Card>
-
-        {byCategory.length > 0 ? (
-          <Card>
-            <CardTitle>By category</CardTitle>
-            <ul className="mt-3 space-y-2">
-              {byCategory.map(([cat, total]) => (
-                <li key={cat} className="flex justify-between text-sm">
-                  <span>{cat}</span>
-                  <span className="font-medium tabular-nums">{formatMoney(total, currency)}</span>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        ) : null}
-
-        <Card>
-          <div className="flex items-center justify-between">
-            <CardTitle>Groups</CardTitle>
-            <Link href="/groups" className="text-sm text-teal-700">
-              View all
-            </Link>
+      <div className="space-y-3">
+        <Card className="space-y-3">
+          <div>
+            <p className="text-sm text-muted">This month (personal)</p>
+            <p className="text-3xl font-bold tabular-nums">{formatMoney(monthTotal, currency)}</p>
+            <p className="text-xs text-muted">{format(new Date(), "MMMM yyyy")}</p>
           </div>
-          {groups.length === 0 ? (
-            <p className="mt-2 text-sm text-slate-500">No group trips yet. Create one to split costs.</p>
-          ) : (
-            <ul className="mt-3 space-y-2">
-              {groups.slice(0, 3).map((g) => (
-                <li key={g.id}>
-                  <Link href={`/groups/${g.id}`} className="block rounded-lg px-2 py-2 hover:bg-slate-50 dark:hover:bg-slate-900">
-                    <p className="font-medium">{g.name}</p>
-                    <p className="text-xs text-slate-500">{g.memberIds.length} members · {g.currency}</p>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
+
+          {hasGroups ? (
+            <div className="border-t border-border pt-3">
+              <p className="text-sm font-medium">Settle up</p>
+              {settleLoading ? (
+                <p className="mt-1 text-sm text-muted">Loading…</p>
+              ) : allSettled ? (
+                <p className="mt-1 text-sm text-muted">All settled in your groups.</p>
+              ) : (
+                <div className="mt-2 space-y-1 text-sm">
+                  {oweEntries.map(([cur, total]) => (
+                    <p key={`owe-${cur}`}>
+                      You owe{" "}
+                      <span className="font-semibold text-red-600">{formatMoney(total, cur)}</span>
+                    </p>
+                  ))}
+                  {owedEntries.map(([cur, total]) => (
+                    <p key={`owed-${cur}`}>
+                      You are owed{" "}
+                      <span className="font-semibold text-teal-700 dark:text-teal-300">
+                        {formatMoney(total, cur)}
+                      </span>
+                    </p>
+                  ))}
+                </div>
+              )}
+              {actionItems.length > 0 ? (
+                <ul className="mt-3 space-y-1 border-t border-border pt-2">
+                  {actionItems.map((item) => (
+                    <li key={`${item.groupId}-${item.toParticipantId}`}>
+                      <Link
+                        href={`/groups/${item.groupId}?settle=1&to=${item.toParticipantId}`}
+                        className="text-sm text-accent hover:underline"
+                      >
+                        {item.groupName}: pay {item.toDisplayName}{" "}
+                        {formatMoney(item.amount, item.currency)}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
         </Card>
+
+        {hasGroups ? (
+          <section>
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-medium">Groups</p>
+              <Link href="/groups" className="text-xs text-accent">
+                See all
+              </Link>
+            </div>
+            <div className="overflow-hidden rounded-xl border border-border bg-surface">
+              {rows.slice(0, 4).map((row) => (
+                <ListRow key={row.group.id} href={`/groups/${row.group.id}`}>
+                  <ListRowAvatar>{row.group.name.slice(0, 1).toUpperCase()}</ListRowAvatar>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">{row.group.name}</p>
+                    <p className="text-xs text-muted">{row.group.currency}</p>
+                  </div>
+                  {!row.loading ? (
+                    <NetBalanceBadge net={row.myNet} currency={row.currency} compact />
+                  ) : null}
+                </ListRow>
+              ))}
+            </div>
+          </section>
+        ) : (
+          <Card>
+            <p className="text-sm text-muted">Create a group to split trip costs.</p>
+            <Link href="/groups" className="mt-2 inline-block text-sm text-accent">
+              Go to Groups →
+            </Link>
+          </Card>
+        )}
 
         <section>
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Recent personal
-          </h2>
+          <p className="mb-2 text-sm font-medium">Recent personal</p>
           {recent.length === 0 ? (
-            <Card>
-              <p className="text-sm text-slate-500">No expenses yet.</p>
-              <Link href="/personal" className="mt-2 inline-block text-sm text-teal-700">
-                Add your first expense →
-              </Link>
-            </Card>
+            <p className="text-sm text-muted">No expenses yet.</p>
           ) : (
             <div className="space-y-2">
               {recent.map((e) => (
